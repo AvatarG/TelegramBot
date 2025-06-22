@@ -1,44 +1,43 @@
 import logging
-import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from hyperliquid import HyperliquidSync
 
-# Логирование (для отладки)
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Логирование (по желанию)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Функция для получения цены BTC с Hyperliquid
+# Получение цены BTC с Hyperliquid
 def get_btc_price():
-    url = "https://api.hyperliquid.xyz/info"
-    payload = {
-        "type": "metaAndAssetCtxs"
-    }
-    response = requests.post(url, json=payload)
-    data = response.json()
-
-    for asset in data['assetCtxs']:
-        if asset['name'] == 'BTC':
-            return float(asset['markPrice'])
-
+    try:
+        client = HyperliquidSync({})
+        data = client.info.getAllMids()
+        for item in data:
+            if item['feed'] == 'BTC-SPOT':
+                return float(item['mid'])
+    except Exception as e:
+        logger.error(f"Ошибка при получении цены BTC: {e}")
     return None
 
-# Обработчик команды /price
+# Обработка команды /price
 async def price_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     price = get_btc_price()
     if price:
-        await update.message.reply_text(f"Текущая цена BTC на Hyperliquid: ${price:.2f}")
+        await update.message.reply_text(f"🟢 Цена BTC на Hyperliquid: ${price:.2f}")
     else:
-        await update.message.reply_text("Не удалось получить цену BTC.")
+        await update.message.reply_text("🔴 Не удалось получить цену BTC. Попробуйте позже.")
 
-# Точка входа
+# Запуск бота
 async def main():
-    app = ApplicationBuilder().token("YOUR_TELEGRAM_BOT_TOKEN").build()
+    # ЗАМЕНИ ЭТО НА СВОЙ ТОКЕН!
+    bot_token = "YOUR_TELEGRAM_BOT_TOKEN"
 
+    app = ApplicationBuilder().token(bot_token).build()
     app.add_handler(CommandHandler("price", price_handler))
 
-    print("Бот запущен...")
+    logger.info("Бот запущен. Ожидает команду /price...")
     await app.run_polling()
 
-# Запуск
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
